@@ -46,9 +46,9 @@
 👉 **不能直接跑 `cf precheck` 命令，但它底层的核心规则脚本可以直接用于裸 Die 检测。**
 
 - **为什么不能直接运行命令**：
-  `cf precheck` 命令行工具是深度绑定在 Caravel / OpenFrame 平台规范下的，它强制要求顶层必须叫 `openframe_project_wrapper`，并会强制执行 `xor`（与官方框架比对）、`topcell_check`、OpenFrame 的 GPIO 检查等。独立芯片（`chip_top`）没有这些包裹层，直接运行命令会在第一步就因"缺少模板"而报错。
+  `cf-precheck` 命令行工具是深度绑定在 Caravel / OpenFrame 平台规范下的，它强制要求顶层必须叫 `openframe_project_wrapper`，并会强制执行 `xor`（与官方框架比对）、`topcell_check`、OpenFrame 的 GPIO 检查等。独立芯片（`chip_top`）没有这些包裹层，直接运行命令会在第一步就因"缺少模板"而报错。
 - **如何用于裸 Die**：
-  `cf precheck` 内部调用的核心检查内核——**KLayout sky130A DRC 脚本（`sky130A_mr.drc`）、Netgen LVS、以及 offgrid/zeroarea 脚本**，本质上就是晶圆厂交付裸 Die（如提交给 wafer.space 或 MOSIS 单独流片）的标准 Signoff 工具。我们在 `chip_r7` 阶段执行的 KLayout DRC 0 和 Netgen LVS 0，正是这种纯裸 Die 级别的检测。
+  `cf-precheck` 内部调用的核心检查内核——**KLayout sky130A DRC 脚本（`sky130A_mr.drc`）、Netgen LVS、以及 offgrid/zeroarea 脚本**，本质上就是晶圆厂交付裸 Die（如提交给 wafer.space 或 MOSIS 单独流片）的标准 Signoff 工具。我们在 `chip_r7` 阶段执行的 Netgen LVS 0 差异、KLayout DRC 31 处（全部为 `ef_io` 焊盘单元内部厂商掩膜图形，IP 固有豁免），正是这种纯裸 Die 级别的检测。
 
 ### 2. 形式 B：未带 Pad Ring 的内部逻辑宏（如纯数字核 `soc_of_logic`）
 
@@ -58,11 +58,11 @@
 ### 3. 形式 C：OpenFrame 框架最终交付的"无封装裸片"（Bare Die Delivery）
 
 👉 **完全适用，且正是为其量身定制的。**
-很多高校和初创团队在芯片流片时选择的是"Bare Die（未封装晶圆裸划片，直接用金线打线或倒装）"交付方式。OpenFrame 的整套 GDS 就是送往 SkyWater 晶圆厂做掩模的裸芯片版图。因此，**通过了 `cf precheck`，就代表这个设计已经完全满足晶圆厂制造裸 Die 的所有物理准入与良率规则**。
+很多高校和初创团队在芯片流片时选择的是"Bare Die（未封装晶圆裸划片，直接用金线打线或倒装）"交付方式。OpenFrame 的整套 GDS 就是送往 SkyWater 晶圆厂做掩模的裸芯片版图。因此，**`cf-precheck` 全部检查项通过（或对 FAIL 项完成 cell 级归属归档并获得提交方豁免认可），即满足 OpenFrame 裸 Die 提交的物理准入要求**。
 
 ---
 
-## 三、 本项目 OpenFrame Wrapper（soc_of_w10）的 Precheck 当前状态
+## 三、 本项目 OpenFrame Wrapper（soc_of_w10）的 Precheck 最终结果
 
 | 检查项 | 状态 | 说明 |
 |---|---|---|
@@ -72,11 +72,16 @@
 | KLayout Offgrid | PASS | 全部图形落在制造网格 |
 | KLayout Pin Label | PASS | 引脚标签与图形对齐 |
 | KLayout ZeroArea | PASS | 无零面积图形 |
-| OEB (CVC) | 运行中 | Magic 抽取 + CVC 校验中 |
-| 其余 KLayout DRC / LVS / XOR | 待运行 | — |
+| OEB (CVC) | PASS | 0 error，14 条良性 warning；44 个 GPIO 配置全部正确识别 |
+| XOR | PASS | `Total XOR differences: 0`，与官方 golden 模板零差异 |
+| LVS (Netgen) | PASS | `Circuits match uniquely`，0 pin mismatch |
+| KLayout FEOL | FAIL → IP 豁免 | 3 处 `MR_licon.SP.6`，全部位于 OpenRAM SRAM bitcell 内部 |
+| KLayout BEOL | FAIL → IP 豁免 | 264 处 `MR_mcon.CON.10`，全部位于 OpenRAM SRAM 内部 |
+| KLayout 密度 | FAIL → IP 豁免 | 204 处 `li1.pd.1d`，约 200 处 SRAM 内部 + 4 处 cell 边界汇总条目 |
+| Magic DRC | SKIP | 官方默认关闭 |
 
-### LibreLane 尾日志中三项 deferred 错误对 Precheck 的影响
+### LibreLane 尾日志中三项 deferred 错误的最终定性
 
-- **Magic DRC ~4461 万条**：Precheck 默认不测 Magic DRC（`--magic-drc` 需手动开启）；官方签核以 KLayout 为准（本项目 KLayout = 0）。该计数 100% 来自 SRAM 宏内部专有规则的已知误报。
+- **Magic DRC ~4461 万条**：Precheck 默认不测 Magic DRC（`--magic-drc` 需手动开启）。该计数 100% 来自 SRAM 宏内部专有规则的已知误报；LibreLane 抽象层 KLayout 为 0，官方全展平 KLayout 的 471 处违例经 cell 级归属分析，其中 467 处定位于 SRAM 硬宏内部，4 处为密度检查的 cell 边界汇总条目。
 - **Magic Illegal Overlap 27 处**：Precheck 无此检查项；实测全部位于 die 东边界 `vccd1_connection`/`vssd1_connection` 宏的 LEF 抽象 OBS 与 met3 电源探针搭接处，属模板固有特征。
-- **LVS 2 处端口错误**：器件/网络差异均为 0，拓扑 100% 匹配；仅边界 `vccd1`/`vssd1` 探针引脚因连接宏 LEF 无引脚而悬空。Precheck 的 `LVS_FLATTEN` 配置会扁平化连接宏、消除该假象；KLayout GDS 物理追踪已实证探针与内部电网完全连通（119 条 met5 + 3.4 万 met4 图形，vccd1/vssd1 无短路）。
+- **LibreLane 内部 LVS 2 处端口错误**：器件/网络差异均为 0，仅边界 `vccd1`/`vssd1` 探针引脚因连接宏 LEF 无引脚而悬空。在官方 precheck 中通过 `LVS_FLATTEN` 扁平化连接宏后该伪影自动消失，最终取得 `Circuits match uniquely`；KLayout GDS 物理追踪亦实证探针与内部电网完全连通（119 条 met5 + 3.4 万 met4 图形，vccd1/vssd1 无短路）。
