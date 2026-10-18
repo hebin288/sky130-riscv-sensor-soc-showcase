@@ -60,6 +60,7 @@
   - [`cf-precheck` 检查机制与裸片适用性](docs/tech_notes/precheck说明.md)
   - [LibreLane 时钟树综合（TritonCTS）与 clock skew](docs/tech_notes/librelane的cts.md)
   - [OpenSTA slack 计算原理与多角签核口径](docs/tech_notes/slack计算原理.md)
+  - [Die 形状成因与封装路径（QFN / COB / chipIgnite 交付形态）](docs/tech_notes/die_shape_and_packaging.md)
 - [RTL 示例：`apb_uart.sv`（带深睡忙互锁与帧错误恢复的 APB UART）](rtl_sample/apb_uart.sv)
 
 ---
@@ -81,3 +82,8 @@
 - 微信：`BILLULM`
 
 > 本仓库仅公开架构规格、示例模块与脱敏签核证据。完整 RTL、物理实现配置（`config.json` / `pdn.tcl` / `lvs_config.json`）与 GDS 数据库面向合作方开放。
+
+### 许可
+
+- 代码（`rtl_sample/` 等）：[Apache-2.0](LICENSE)
+- 文档与图片（`README.md`、`docs/`、`assets/`）：[CC BY 4.0](LICENSE)
