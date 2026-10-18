@@ -1,5 +1,7 @@
 # SKY130A RISC-V 低功耗传感器 SoC — 物理实现与签核基线
 
+[English README](README_EN.md)
+
 > 全开源工具链（Yosys/slang → LibreLane/OpenROAD → KLayout/Magic/Netgen/CVC）完成 RTL-to-GDSII 全流程；
 > 官方 `cf-precheck` 核心签核项（XOR / LVS / OEB / 布线 DRC / 几何规则）全部通过，3 项全规则检查为已逐条归属的硬 IP 内部豁免项。
 
